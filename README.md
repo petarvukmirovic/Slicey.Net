@@ -16,7 +16,6 @@ Like in NgRx, selector will asynchronously emit new values when they are updated
 
 ## Important
 The project is in very early development phase. Features that will be added include
-* Support for slicing the state in one root store and many slice stores (like NgRx)
 * Intelligently updating only the selectors whose state has been updated (by
 first preprocessing the expressions that define the selector)
 * Allowing actions defined only on slice levels to be processed concurrently.
