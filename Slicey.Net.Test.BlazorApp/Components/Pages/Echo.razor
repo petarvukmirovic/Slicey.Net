@@ -1,0 +1,42 @@
+﻿@page "/echo"
+@using Slicey.Net.Test.BlazorApp.State
+@rendermode InteractiveServer
+@inject EchoStateStore store
+
+<PageTitle>Echo</PageTitle>
+
+<h1>Echo</h1>
+
+<p role="status">Latest message: <i> @message </i> </p>
+
+<p role="form"> User name: <input @oninput=UpdateName /> </p>
+<p role="form"> User message: <input @oninput=UpdateMessage /> </p>
+
+
+@code {
+    string message = "waiting for input...";
+    string userName = "";
+    string userMessage = "";
+
+    protected override void OnInitialized()
+    {
+        message = store.EchoSelector;
+        store.EchoSelector.SelectorUpdated += (_, newValue) =>
+        {
+            message = newValue;
+            InvokeAsync(StateHasChanged);
+        };
+    }
+
+    private void UpdateName(ChangeEventArgs e)
+    {
+        userName = e?.Value?.ToString() ?? "";
+        store.Dispatch(store.UpdateEcho, (user: userName, message: userMessage));
+    }
+
+    private void UpdateMessage(ChangeEventArgs e)
+    {
+        userMessage = e?.Value?.ToString() ?? "";
+        store.Dispatch(store.UpdateEcho, (user: userName, message: userMessage));
+    }
+}

@@ -1,0 +1,19 @@
+﻿@page "/"
+@using Slicey.Net.Test.BlazorApp.State
+@inject RootStore store
+
+<PageTitle>Home</PageTitle>
+
+<p role="status">Current count: @counterValue</p>
+<p role="status">Current echo: @echoValue</p>
+
+@code {
+    int counterValue = 0;
+    string echoValue = "";
+
+    protected override void OnInitialized()
+    {
+        counterValue = store.CounterValueSelector;
+        echoValue = store.EchoValueSelector;
+    }
+}

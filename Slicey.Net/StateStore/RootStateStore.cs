@@ -14,6 +14,7 @@ namespace Slicey.Net
     /// </summary>
     /// <typeparam name="TState">Type of the data that is maintained in the store</typeparam>
     public abstract class RootStateStore<TState> : StateStore<TState>, IDisposable
+
     {
         private TState State;
         private readonly ICloner cloner;
