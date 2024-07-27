@@ -164,3 +164,13 @@ builder.RegisterRootStore<AppStateStore, AppState>(initialState);
 builder.RegisterSliceStore<ModuleAStore, AppState, ModuleAState>();
 builder.RegisterSliceStore<ModuleBStore, AppState, ModuleBState>();
 ```
+
+### Examples
+
+There is an [example .NET Blazor app](https://github.com/petarvukmirovic/Slicey.Net/tree/main/Slicey.Net.Test.BlazorApp)
+that demonstrates how to use sliced store in practice
+
+## Information / bug reports / inquiries
+
+For bug reports, inquiries, and any other information use \<username\>
+at gmail.com where my username is petar.vukmirovic2
