@@ -1,92 +1,166 @@
-# Slicey.Net
+# Slicey.Net: strongly-typed Expression-based Redux-like library for .NET
 
 ## About
-An NgRx and Redux inspired library for state management in .NET.
+Slicey.Net is an NgRx and Redux inspired library for state management in .NET.
 
-Unlike other .NET Redux libraries, it does not require making classes for all
-actions, selectors and reducers, but provides metods that register these objects
-in a familiar (almost exactly like in NgRx), intuitive and type-safe way.
+It has been developed with 4 important design principles:
+* It takes advantage of native C# concepts like ExpressionTrees for strong typing and\
+  events for notifying that state has been updated
+* Like NgRx store, it manges state in slices so that store can be separated \
+  in multiple easy to manage stores responsible for their own part of the state
+* It requires only state stores to inherit from library types, while actions, reducers\
+  and selectors are easily added with provided builder methods
+* Dependency injection is supported out of the box 
 
-Slicey.Net is asynchronous and thread-safe: actions can be dispatched from many
-different threads, and they will be processed one by one by a background thread.
+## How to use Slicey.Net
 
-Like in NgRx, selector will asynchronously emit new values when they are updated
-(using native .NET events)
-
-
-## Important
-The project is in very early development phase. Features that will be added include
-* Intelligently updating only the selectors whose state has been updated (by
-first preprocessing the expressions that define the selector)
-* Allowing actions defined only on slice levels to be processed concurrently.
-
-## Example
-
-Here is an example of a store:
+### Implementing the root store
+Suppose that your application has to manage state consisting
+of the following class:
 
 ```c#
-internal class TestStore : StateStore<StoreDataClass>
+class AppState
 {
-      public TestStore(StoreDataClass initialState) : base(initialState)
-      {
-          FlipBool = AddAction("flip bool");
-          AppendInnerString = AddAction<string>("append string");
-          IncreaseNum = AddAction<int>("incrase num");
-
-          FlippedBoolSelector = AddSelector(store => !store.BoolProp);
-          InnerStringSelector = AddSelector(store => store.InnerProp.StringProp);
-          DoubleNumSelector = AddSelector(store => (long)(2*store.NumProp));
-
-          RegisterReducers();
-      }
-
-      private void RegisterReducers()
-
-      {
-          AddReducer(FlipBool, 
-                     state => state.BoolProp, 
-                     state => !state.BoolProp);
-          AddReducer(AppendInnerString, 
-                     state => state.InnerProp.StringProp, 
-                     (state, suffix) => state.InnerProp.StringProp + suffix);
-          AddReducer(IncreaseNum, 
-                     state => state.NumProp, 
-                     (state, inc) => state.NumProp + inc);
-      }
-
-      public StateAction FlipBool { get; }
-      public StateAction<string> AppendInnerString { get; }
-      public StateAction<int> IncreaseNum { get; }
-
-      public Selector<StoreDataClass, bool> FlippedBoolSelector { get; }
-      public Selector<StoreDataClass, string> InnerStringSelector { get; }
-      public Selector<StoreDataClass, long> DoubleNumSelector { get; }
-}
-```
-which is dependent on a state data class:
-```c#
-namespace Slicey.Net.Store.Tests
-{
-    record class Record(string StringProp);
-
-    internal class StoreInnerClass 
-    {
-        public int IntProp { get; set; }
-        public string StringProp { get; set; } = "";
-        public Record RecordProp { get; set; } = new("inner record");
-    }
-
-    internal class StoreDataClass
-    {
-        public int NumProp { get; set; }
-        public bool BoolProp { get; set; }
-        public string StringReadonlyProp { get; } = "Readonly";
-        public string StringWriteableProp { get; set; } = "";
-        public StoreInnerClass InnerProp { get; } = new();
-    }
+    public int IntProperty { get; set; }
+    public string StringProperty { get; set; } = "";
 }
 ```
 
-Each selector can be read directly by implicitly converting it to target value type
-(for example `(bool)FlippedBoolSelector`) and one can subscribe to changes to values
-using `SelectorUpdated` method.
+Suppose further that there are three types of mutations possible:
+`IntProperty` can be increased or reset, while `StringProperty`
+can only be appended to. Note that we are not interested in the
+values of the properties themselves but in double the value of
+`IntProperty`and HTML formatted value of `StringProperty`. This
+can be achieved with the following store:
+
+```c#
+public class AppStateStore : RootStateStore<AppState>
+{
+    public AppStateStore(AppState initialState) : base(initialState)
+    {
+        DoubleIntSelector = AddSelector(state => state.IntProperty * 2);
+        BoldString = AddSelector(state => $"<emph> {state.StringProperty} </emph>");
+
+        IncreaseInt = AddAction<int>();
+        ResetInt = AddAction();
+        AppendToString = AddAction<string>();
+
+        AddReducer(IncreaseInt,
+                   state => state.IntProperty,
+                   (state, incAmount) => state.IntProperty + incAmount);
+        AddReducer(ResetInt,
+                   state => state.IntProperty,
+                   (_) => 0);
+        AddReducer(AppendToString,
+                   state => state.StringProperty,
+                   (state, suffix) => state.StringProperty + suffix);
+    }
+
+    public Selector<AppState, int> DoubleIntSelector { get; }
+    public Selector<AppState, string> BoldString { get; }
+    
+    public StateAction<int> IncreaseInt { get; }
+    public StateAction ResetInt { get; }
+    public StateAction<string> AppendToString { get; }
+}
+```
+
+* **Selectors** are simply defined using builder method and
+  expression that produces a value using the state varibles.
+  Their current value can be read by converting the selector
+  to the target type of selector (e.g. `(string)BoldString`).
+  They also expose event `SelectorUpdated` whenever new value
+  is generated for selector.
+* **Actions** can have arguments like `IncreaseInt` and `AppendToString`
+  or have no arguments like `ResetInt`
+* **Reducers** represent rules that describe how the state is updated
+  when action occurs. For example, the first reducer defined above states 
+  that propery `IntProperty` is incremented by action argument `incAmount`
+* Actions are **dispatched** by calling the `Dispatch` method on the store.
+  For example, to increase the `IntProperty` by 5 we call `store.Dispatch(store.IncreaseInt, 5)`.
+  To reset the same property, we call `store.Dispatch(store.ResetInt)`; 
+  This will dispatch an action that will, according to the rules described by reducers
+  update the state and invoke the selectors that have been updated.
+* Note that selectors and actions are exposed as public properties as they are  
+  used outside the store, while reducers are internal rules on how to update
+  the state and are not exposed.
+
+### Slicing the state
+
+Now suppose that we have two independent modules that maintain their own state
+and a root module that is simply interested in the state of both modules. This can be 
+best modelled by `SliceStore`s:
+
+```c#
+public class ModuleAState
+{
+    public string PropA { get; set; } = "";
+}
+
+public class ModuleBState
+{
+    public int PropB { get; set; }
+}
+
+public class AppState
+{
+    public ModuleAState ModuleAState { get; set; } = new();
+    public ModuleBState ModuleBState { get; set; } = new();
+}
+
+public class AppStateStore : RootStateStore<AppState>
+{
+    public AppStateStore(AppState initialState) : base(initialState)
+    {
+        AState = AddSelector(state => state.ModuleAState.PropA);
+        BState = AddSelector(state => state.ModuleBState.PropB);
+    }
+
+    public Selector<AppState, string> AState { get; }
+    public Selector<AppState, int> BState { get; }
+}
+
+public class ModuleAStore : SliceStateStore<AppState, ModuleAState>
+{
+    public ModuleAStore(RootStateStore<AppState> rootStore) : base(rootStore, store => store.ModuleAState)
+    {
+        // Actions, Selectors and Reducers that are scoped to ModuleAState
+    }
+}
+
+public class ModuleBStore : SliceStateStore<AppState, ModuleBState>
+{
+    public ModuleBStore(RootStateStore<AppState> rootStore) : base(rootStore, store => store.ModuleBState)
+    {
+        // Actions, Selectors and Reducers that are scoped to ModuleAState
+    }
+}
+```
+
+### Mutability
+
+Unlike JavaScript based state stores, Slicey.NET does not require that every reducer creates
+a new copy of the state. This can lead to unwanted side effects if the objects that are input
+(initial state and results of reducer computations) or output (selector values) 
+to state store are manipulated outside the store. To mitigate this, Slicey.Net deeply clones 
+all the objects that are inputs or outputs to the store.
+
+If this is too expensive for your use case, you override default cloning behavior to either
+shallow cloning or no cloning by using the `cloningLevel` argument of the `RootStateStore`.
+The same clonning level is used in all `SliceStateStore`s based on this `RootStateStore`.
+
+### Dependency injection
+
+Slicey.Net exposes `RegisterRootStore<TStore, TStoreType>` and `RegisterSliceStore<TStore, TRootType, TStoreType>` 
+that can be used to inject the classes in the dependency container. Stores are injected as **singletons**. 
+
+Following the example for slice stores, these would be injected as follows (Slicey.Net supports injecting into 
+`IHostBuilder`, `IHostApplicationBuilder` and directly into `IServiceCollection`):
+
+```c#
+var builder = WebApplication.CreateBuilder(args);
+var initialState = new AppStateStore();
+builder.RegisterRootStore<AppStateStore, AppState>(initialState);
+builder.RegisterSliceStore<ModuleAStore, AppState, ModuleAState>();
+builder.RegisterSliceStore<ModuleBStore, AppState, ModuleBState>();
+```

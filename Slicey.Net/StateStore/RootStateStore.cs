@@ -18,7 +18,7 @@ namespace Slicey.Net
     {
         private TState State;
         private readonly ICloner cloner;
-        protected RootStateStore(TState initialState, CloningLevel cloningLevel = CloningLevel.NoCloning) 
+        protected RootStateStore(TState initialState, CloningLevel cloningLevel = CloningLevel.DeepCloning) 
         {
             cloner = cloningLevel.ToCloner();
             State = cloner.Clone(initialState);
